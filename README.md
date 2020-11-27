@@ -2,9 +2,11 @@
 
 Dump clipboard contents as JSON to console.
 
+Download binary from [Releases](https://github.com/abdusco/dumpclip/releases)
+
 ## Usage
 
-- Copy some text
+- Copy some text then run
     ```powershell
     dumpclip.exe
     ```
@@ -14,7 +16,7 @@ Dump clipboard contents as JSON to console.
     ```json
     {"text":"Dump clipboard contents as JSON to console."}
     ```
-- Copy some files
+- Copy some files then run
     ```powershell
     dumpclip.exe
     ```
