@@ -4,85 +4,68 @@ using System.Windows.Forms;
 
 namespace DumpClipboard
 {
-    public class ClipboardMonitor : Form
+    public class ClipboardMonitor : IDisposable
     {
-        private IntPtr _nextClipboardViewer;
+        private readonly MessageListener _messageListener;
+        public event EventHandler<ClipboardChangedEventArgs> ClipboardChanged;
 
         public ClipboardMonitor()
         {
-            Visible = false;
-
-            _nextClipboardViewer = (IntPtr) SetClipboardViewer((int) Handle);
-        }
-
-        /// <summary>
-        /// Clipboard contents changed.
-        /// </summary>
-        public event EventHandler<ClipboardChangedEventArgs> ClipboardChanged;
-
-        protected override void Dispose(bool disposing)
-        {
-            ChangeClipboardChain(Handle, _nextClipboardViewer);
-        }
-
-        [DllImport("User32.dll")]
-        private static extern int SetClipboardViewer(int hWndNewViewer);
-
-        [DllImport("User32.dll", CharSet = CharSet.Auto)]
-        private static extern bool ChangeClipboardChain(IntPtr hWndRemove, IntPtr hWndNewNext);
-
-        [DllImport("user32.dll", CharSet = CharSet.Auto)]
-        private static extern int SendMessage(IntPtr hwnd, int wMsg, IntPtr wParam, IntPtr lParam);
-
-        protected override void WndProc(ref Message m)
-        {
-            // defined in winuser.h
-            const int WM_DRAWCLIPBOARD = 0x308;
-            const int WM_CHANGECBCHAIN = 0x030D;
-
-            switch (m.Msg)
+            _messageListener = new MessageListener(() =>
             {
-                case WM_DRAWCLIPBOARD:
-                    OnClipboardChanged();
-                    SendMessage(_nextClipboardViewer, m.Msg, m.WParam, m.LParam);
-                    break;
+                var contents = ClipboardEx.GetContents();
+                ClipboardChanged?.Invoke(this, new ClipboardChangedEventArgs(contents));
+            });
+        }
 
-                case WM_CHANGECBCHAIN:
-                    if (m.WParam == _nextClipboardViewer)
-                        _nextClipboardViewer = m.LParam;
-                    else
-                        SendMessage(_nextClipboardViewer, m.Msg, m.WParam, m.LParam);
-                    break;
+        public void Dispose()
+        {
+            _messageListener?.Dispose();
+        }
 
-                default:
-                    base.WndProc(ref m);
-                    break;
+        public class ClipboardChangedEventArgs : EventArgs
+        {
+            public readonly ClipboardContent Contents;
+            public ClipboardChangedEventArgs(ClipboardContent contents) => Contents = contents;
+        }
+
+        private class MessageListener : Form
+        {
+            private readonly Action _onClipboardChanged;
+            private const int WM_CLIPBOARDUPDATE = 0x031D;
+
+            public MessageListener(Action onClipboardChanged)
+            {
+                _onClipboardChanged = onClipboardChanged;
+                Win32Api.AddClipboardFormatListener(this.Handle);
+            }
+
+            protected override void WndProc(ref Message m)
+            {
+                base.WndProc(ref m);
+                if (m.Msg != WM_CLIPBOARDUPDATE) return;
+                _onClipboardChanged();
+            }
+
+            protected override void Dispose(bool disposing)
+            {
+                base.Dispose();
+                Win32Api.RemoveClipboardFormatListener(this.Handle);
             }
         }
 
-        void OnClipboardChanged()
+        private static class Win32Api
         {
-            try
-            {
-                var payload = new ClipboardChangedEventArgs(ClipboardEx.GetContents());
-                ClipboardChanged?.Invoke(this, payload);
-            }
-            catch (Exception e)
-            {
-                // Swallow or pop-up, not sure
-                // Trace.Write(e.ToString());
-                MessageBox.Show(e.ToString());
-            }
-        }
-    }
+            [DllImport("user32.dll", SetLastError = true)]
+            [return: MarshalAs(UnmanagedType.Bool)]
+            public static extern bool AddClipboardFormatListener(IntPtr hwnd);
 
-    public class ClipboardChangedEventArgs : EventArgs
-    {
-        public readonly ClipboardContent Contents;
-
-        public ClipboardChangedEventArgs(ClipboardContent contents)
-        {
-            Contents = contents;
+            /// <summary>
+            /// Removes the given window from the system-maintained clipboard format listener list.
+            /// </summary>
+            [DllImport("user32.dll", SetLastError = true)]
+            [return: MarshalAs(UnmanagedType.Bool)]
+            public static extern bool RemoveClipboardFormatListener(IntPtr hwnd);
         }
     }
 }

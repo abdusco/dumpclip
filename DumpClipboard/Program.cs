@@ -18,7 +18,7 @@ namespace DumpClipboard
             if (args.Contains("--listen"))
             {
                 using var monitor = new ClipboardMonitor();
-                monitor.ClipboardChanged += (sender, args) => ConsoleEx.WriteJson(args.Contents);
+                monitor.ClipboardChanged += (sender, eventArgs) => ConsoleEx.WriteJson(eventArgs.Contents);
                 Application.Run();
                 return;
             }
