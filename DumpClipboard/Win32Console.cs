@@ -2,7 +2,7 @@
 
 namespace DumpClipboard
 {
-    internal static class Win32Native
+    internal static class Win32Console
     {
         [DllImport("Kernel32.dll")]
         private static extern bool AttachConsole(int processId);

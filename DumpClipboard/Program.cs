@@ -1,40 +1,30 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Windows.Forms;
+
+[assembly: AssemblyTitle("dumpclip")]
+[assembly: AssemblyVersion("1.1.0")]
 
 namespace DumpClipboard
 {
     static class Program
     {
         [STAThread]
-        static void Main()
+        static void Main(string[] args)
         {
-            Win32Native.AttachConsole();
+            Win32Console.AttachConsole();
 
-            var contents = GetClipboardContents();
+            if (args.Contains("--listen"))
+            {
+                using var monitor = new ClipboardMonitor();
+                monitor.ClipboardChanged += (sender, args) => ConsoleEx.WriteJson(args.Contents);
+                Application.Run();
+                return;
+            }
+
+            var contents = ClipboardEx.GetContents();
             ConsoleEx.WriteJson(contents);
-        }
-
-        private static ClipboardContent GetClipboardContents()
-        {
-            if (Clipboard.ContainsFileDropList())
-            {
-                return new ClipboardContent
-                {
-                    Files = Clipboard.GetFileDropList().Cast<string>().ToList()
-                };
-            }
-
-            if (Clipboard.ContainsText(TextDataFormat.Text))
-            {
-                return new ClipboardContent
-                {
-                    Text = Clipboard.GetText()
-                };
-            }
-
-            return new ClipboardContent();
         }
     }
 }
